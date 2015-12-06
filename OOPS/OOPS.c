@@ -21,15 +21,23 @@
 
 /* Goal: First solve symmetry tasks, then Hanoi task - this took 4 */
 /** days on the slow 600mhz computer used by Juergen back in 2002 **/
-#include            <stddef.h>	/*names starting by an a denote */
-#include            <stdlib.h>	/*addresses amin ..-1,0,1..amax */
-#include            <math.h>	/*waste q[0](1st element of the */
-#include            <stdio.h>	/*array q[]),and start at q[1]! */
-#include            <time.h>	/*Optimal search for code saved */
-#include            <string.h>	/*in q[]; solves >=1 tasks; may */
-/*build on solutions for older tasks frozen in q[] - may metasearch*/
-/*Codes grow when an instruction ptr points beyond Q on top; new Q;*/
-/*keeps track of all due changes and undoes for next alternative Q!*/
+#include            <stddef.h>
+#include            <stdlib.h>
+#include            <math.h>
+#include            <stdio.h>
+#include            <time.h>
+#include            <string.h>
+
+/*
+  names starting by an a denote addresses amin ..-1,0,1..amax
+  waste q[0](1st element of the array q[]),and start at q[1]!
+  Optimal search for code saved in q[]; solves >=1 tasks; may
+  build on solutions for older tasks frozen in q[] - may metasearch
+  Codes grow when an instruction ptr points beyond Q on top; new Q;
+  keeps track of all due changes and undoes for next alternative Q!
+ */
+
+
 
 /****** ************ *************** GENERAL MACROS, AND DATA TYPES*/
 #define TRUE         1		/*boolean values small integers */
@@ -57,105 +65,105 @@ typedef void(*FN1) (long);
 typedef BOOL(*BOFN) ();
 struct INFOQ
 {
-	FN fn;			/*fn is pointing to C-function! */
-	long start;			/*start position of declared Q */
+	FN fn;       /* fn is pointing to C-function! */
+	long start;  /* start position of declared Q */
 	char *name;
 };				/*we can declare named programs */
 struct CHAINS
 {
-	long next;			/*all (un)solved tasks in lists */
+	long next;   /* all (un)solved tasks in lists */
 	long prev;
 };				/*with pointers: back and forth */
 struct INFOOLD
 {
-	long size;			/*size of frozen previous code */
+	long size;   /* size of frozen previous code */
 	long start;
 };				/*start address of the program */
 struct CHANGE
 {
-	long cell;			/*a tape address - got modified */
-	long cont;			/*old content is to be restored */
+	long cell;   /* a tape address - got modified */
+	long cont;   /* old content is to be restored */
 	long task;
 };				/*task number of modified tape */
 struct OP
 {
-	long Q;			/*an instruction number or Qnum */
-	long Sp;			/*to reset tapes like before Q */
-	long last;			/*solved tasks - before Q's use */
-	long SQ;			/*some Qs have a searchQ number */
-	lolo t;			/*time: before Q got used first */
-	double p;			/*probability of Q given a tape */
+	long Q;      /* an instruction number or Qnum */
+	long Sp;     /* to reset tapes like before Q */
+	long last;   /* solved tasks - before Q's use */
+	long SQ;     /* some Qs have a searchQ number */
+	lolo t;      /* time: before Q got used first probability of Q given a tape */
+	double p;
 	double P;
 };				/*probability of Qs before my Q */
 				/*last points to a list; Sp into big stack with */
 				/*changes due to Q - to reinsert tasks & reset */
 				/*t and P needed to test whether runtime <= T*P */
 
-				/****** ************ *************** ***** IMPORTANT TAPE ADDRESSES*/
-long acp,			/*cell of task's callstackptr to call functions */
-aendcalls,			/*ending of call stack beginning after this acp */
-adp,				/*address: local stackpointer is for push & pop */
-aendstack,			/*ends arguments stack beginning after this adp */
-aDp,				/*address of the second stackptr for pushD etc. */
-aendDs,			/*end of the 2nd stack beginning after this aDp */
-afnp,				/*number of self-made programs & call addresses */
-aendfns,			/*end of list of codes beginning after the afnp */
-avp,				/*number of self-generated names of vectors etc */
-aendvs,			/*name has size, address - first after this avp */
-aendvecs,			/*1st vect after aendvs and more until aendvecs */
-atask,			/*the address to hold the tape's problem number */
-aquoteflag,			/*if quoteflag=1 then don't exec code but push! */
-apatp,			/*topmost search pattern with SQ probabilities! */
-acurp,			/*pointer to the distribution of current search */
-aendpats,			/*nSQs +2 values per pattern:1st after my acurp */
-aenv,				/*environments! */
-awork,			/*holds start of modifiable work tape addresses */
-aendwork;			/*work tape end */
+/****** ************ *************** ***** IMPORTANT TAPE ADDRESSES*/
+long acp,           /* cell of task's callstackptr to call functions */
+aendcalls,          /* ending of call stack beginning after this acp */
+adp,                /* address: local stackpointer is for push & pop */
+aendstack,          /* ends arguments stack beginning after this adp */
+aDp,                /* address of the second stackptr for pushD etc. */
+aendDs,             /* end of the 2nd stack beginning after this aDp */
+afnp,               /* number of self-made programs & call addresses */
+aendfns,            /* end of list of codes beginning after the afnp */
+avp,                /* number of self-generated names of vectors etc */
+aendvs,             /* name has size, address - first after this avp */
+aendvecs,           /* 1st vect after aendvs and more until aendvecs */
+atask,              /* the address to hold the tape's problem number */
+aquoteflag,         /* if quoteflag=1 then don't exec code but push! */
+apatp,              /* topmost search pattern with SQ probabilities! */
+acurp,              /* pointer to the distribution of current search */
+aendpats,           /* nSQs +2 values per pattern:1st after my acurp */
+aenv,               /* environments! */
+awork,              /* holds start of modifiable work tape addresses */
+aendwork;           /* work tape end */
 
-					/*****  ************ *************** ******** GLOBAL VARIABLES *****/
-struct OP q[amax + 1];		/*goal: programs in the q-stack */
-struct INFOQ Q[maxQ + 1];	/*for info about an instruction */
-struct INFOOLD old[amax + 1];	/*for info about frozen progrms */
-struct CHAINS list[maxtask + 1];	/*unsolved tasks & solved tasks */
-struct CHANGE S[stacksize + 1];	/*1 global stack restores tapes */
-double P;			/*probability of program so far */
-lolo t,				/*steps consumed by current prg */
-T,				/*time limit for current search */
-totalt,			/*total time for search, so far */
-topt = 0,			/*longest run of any prg so far */
-insts = 0,			/*counting token-instructions * */
-prefs = 0;			/*counts: tested prog prefixes */
-BOOL mark[maxtask + 1][tapesize + 1],	/*address pushed after last Q * */
-halt,				/*normally after semantic error */
-jumped,			/*was there jump to an address? */
-pushenabled,			/*push a change? yes or no flag */
-done,				/*entire problem list is solved */
-good;				/*final task not only better but truly finished */
-BOFN successfn;			/*variable, task-specific fn for the evaluation */
-FN1 inittaskfn;			/*variable, task-specific fn for initialization */
-FN1 probfn;			/*variable, task-specific fn for initial probs */
+/*****  ************ *************** ******** GLOBAL VARIABLES *****/
+struct OP q[amax + 1];                 /* goal: programs in the q-stack */
+struct INFOQ Q[maxQ + 1];              /* for info about an instruction */
+struct INFOOLD old[amax + 1];          /* for info about frozen progrms */
+struct CHAINS list[maxtask + 1];       /* unsolved tasks & solved tasks */
+struct CHANGE S[stacksize + 1];        /* 1 global stack restores tapes */
+double P;                              /* probability of program so far */
+lolo t,                                /* steps consumed by current prg */
+T,                                     /* time limit for current search */
+totalt,                                /* total time for search, so far */
+topt = 0,                              /* longest run of any prg so far */
+insts = 0,                             /* counting token-instructions * */
+prefs = 0;                             /* counts: tested prog prefixes */
+BOOL mark[maxtask + 1][tapesize + 1],  /* address pushed after last Q * */
+halt,                                  /* normally after semantic error */
+jumped,                                /* was there jump to an address? */
+pushenabled,                           /* push a change? yes or no flag */
+done,                                  /* entire problem list is solved */
+good;                                  /* final task not only better but truly finished */
+BOFN successfn;                        /* variable, task-specific fn for the evaluation */
+FN1 inittaskfn;                        /* variable, task-specific fn for initialization */
+FN1 probfn;                            /* variable, task-specific fn for initial probs */
 
-long tape[maxtask + 1][tapesize + 1],	/*dynamical data on task's tape */
-SQ[maxQ + 1],			/*compose search-Qs with search */
-oldp,				/*old  [oldp] is info about  top frozen program */
-ndecl,			/*number of user-defined, decl'd programs in q! */
-task,				/*current task & entrance to the unsolved chain */
-Sp,				/*pointer to the top stack entry in global stck */
-topSp = 0,			/*max. stack ptr seen up to now */
-nQs,				/*counts initial prewired codes */
-quotenum,			/*number for the token "quote"! */
-qp,				/*the pointer to topmost inst in stack-like q[] */
-afrozen,			/*older programs unmodifiable up to the afrozen */
-nSQs,				/* num of search progs - combine during search! */
-acurrent,			/*current tasks: instruction ptr starting here! */
-alast,			/*every previous task's solvable from the alast */
-toptask,			/*number for top task during the current search */
-unsolved,			/*current number of now unsolved problems/tasks */
-anchor;			/*start of chain of solved tasks in task list[] */
+long tape[maxtask + 1][tapesize + 1],  /* dynamical data on task's tape */
+SQ[maxQ + 1],                          /* compose search-Qs with search */
+oldp,                                  /* old  [oldp] is info about  top frozen program */
+ndecl,                                 /* number of user-defined, decl'd programs in q! */
+task,                                  /* current task & entrance to the unsolved chain */
+Sp,                                    /* pointer to the top stack entry in global stck */
+topSp = 0,                             /* max. stack ptr seen up to now */
+nQs,                                   /* counts initial prewired codes */
+quotenum,                              /* number for the token "quote"! */
+qp,                                    /* the pointer to topmost inst in stack-like q[] */
+afrozen,                               /* older programs unmodifiable up to the afrozen */
+nSQs,                                  /* num of search progs - combine during search! */
+acurrent,                              /* current tasks: instruction ptr starting here! */
+alast,                                 /* every previous task's solvable from the alast */
+toptask,                               /* number for top task during the current search */
+unsolved,                              /* current number of now unsolved problems/tasks */
+anchor;                                /* start of chain of solved tasks in task list[] */
 
-				/*** ***** TRACK NON-OP TAPE CHANGES IN GLOBAL STACK:POP/PUSH CELLS*/
-				/*** 1 big stack for all my parallel tasks; Sp=0 --> stack is empty*/
-				/*** pushcells store task's tapecell values before a test of next Q*/
+/*** ***** TRACK NON-OP TAPE CHANGES IN GLOBAL STACK:POP/PUSH CELLS*/
+/*** 1 big stack for all my parallel tasks; Sp=0 --> stack is empty*/
+/*** pushcells store task's tapecell values before a test of next Q*/
 
 void
 pushcell(long cell)
@@ -199,8 +207,7 @@ unmark(long ptr)
 /*** c(a):content of non-q[] address a (given task); z(a): of any a*/
 /* a callstack frame holds C(1)= ip; C(2) = base dp; out = num rets*/
 /* C(4..n) useful as local variables above top frame of a callstack*/
-/*** push & pop: for params / return values: call by value / by ref*/
-/*we will not access any nonexisting code beyond qp, or cells <amin*/
+/*** push & pop: for params / return values: call by value / by ref we will not access any nonexisting code beyond qp, or cells <amin */
 BOOL
 bad(long a)
 {
@@ -332,7 +339,7 @@ down(long n, long a)
 	}
 }
 
-/*we create: another stack @ aDp+1 & its ops pushD & popD and so on*/
+/* we create: another stack @ aDp+1 & its ops pushD & popD and so on */
 void
 pushD(long x)
 {
@@ -613,12 +620,12 @@ void
 powr()
 {
 	long n = pop(), i, m = pop();	/*m>=0, to n-th power */
-	if (m <= 1)
+	if (m <= 1) /* instantaneous */
 	{
 		push(1);
 		return;
 	}
-	i = m;			/*instantaneous */
+	i = m;
 	while (n > 1 && minint < i && i < maxint)
 	{
 		i *= m;
@@ -657,10 +664,11 @@ ex()
 	set(adp + m - 1, x);
 }
 
+/* exchange stack elements */
 void
 xmn()
 {
-	long x, m = pop(), n = pop();	/*exchg stack elements */
+	long x, m = pop(), n = pop();
 	m = dp - m + 1;
 	n = dp - n + 1;		/*above top entry, too */
 	if (m < 1 || m > maxdp || n < 1 || n > maxdp)
@@ -933,7 +941,7 @@ bsf()
 	calla(-1, -1, base + adp + pop() + 1);
 }				/*ret later to code! */
 
-				/*** *************** SOME PRIMITIVES TO EDIT CODE ON THE DATA STACK*/
+/*** *************** SOME PRIMITIVES TO EDIT CODE ON THE DATA STACK*/
 void
 getq()
 {
@@ -1016,11 +1024,11 @@ insn()
 	set(adp, dp + n);
 }				/*insert n: from base+a after+b */
 
-				/*** * BIAS-SHIFTING PRIMITIVES THAT MODIFY THE CODE PROBABILITIES */
-				/*on tape: sum & max of unnormalized Q-probabilities of search list*/
-				/*to get prob: pn(n) is unnormalized probability for n-th search SQ*/
-				/* a selfreferential action modifies probability for search options*/
-				/* a search  pattern defines a prob. distribution on possible SQ's!*/
+/*** * BIAS-SHIFTING PRIMITIVES THAT MODIFY THE CODE PROBABILITIES   */
+/* on tape: sum & max of unnormalized Q-probabilities of search list */
+/* to get prob: pn(n) is unnormalized probability for n-th search SQ */
+/*  a selfreferential action modifies probability for search options */
+/*  a search  pattern defines a prob. distribution on possible SQ's! */
 #define poff    acurp + curp * (nSQs+2)	/*probs: offset */
 long
 psum()
@@ -1175,11 +1183,11 @@ popat()
 	push(i);
 }				/*pop search pattern */
 
-				/*** *************** *************** PROBLEMSPECIFIC THINGS: HANOI */
-				/*** rule: represent each modifiable aspect of world on task tapes!*/
-				/*** we are starting at aenv - first top1, then disk 1,2,..., top1;*/
-				/*at aenv+maxtask +1 find top2, then disks 1,..top2, and so on...  */
-				/*** push on stack:  1=source peg, 2 = aux, 3= dest, then num disks*/
+/*** *************** *************** PROBLEMSPECIFIC THINGS: HANOI */
+/*** rule: represent each modifiable aspect of world on task tapes!*/
+/*** we are starting at aenv - first top1, then disk 1,2,..., top1;*/
+/*at aenv+maxtask +1 find top2, then disks 1,..top2, and so on...  */
+/*** push on stack:  1=source peg, 2 = aux, 3= dest, then num disks*/
 #define hanoff (aenv+(tower-1)* dsize)	/*offset: frequent macro */
 long dsize, envsize;
 void
@@ -1343,17 +1351,17 @@ successsymm()
 	return FALSE;
 }				/*instantaneous */
 
-				/*alternatively: measure time by counting tape's checked cells! */
+/*alternatively: measure time by counting tape's checked cells! */
 
-				/******************* ENTER PRIMITIVE INSTRUCTIONS  & COMPLEX PROGS */
-				/*we will now create initial perhaps recursive codes that go to q[]*/
-				/*enter(A) to assign code & Qnum and 0 start-address to Q's name, A*/
-				/*enterv and enterw: enter code such as in5(),x34(), cp3() & C4C2()*/
-				/*ENTER (foo) states that foo is one of the codes in optimal search*/
-				/*decl(m,n,foo,body) makes footext & fooaddress; foo code: m inputs*/
-				/*n outputs; at most 1 new name in a body, for 1fold crossrecursion*/
-				/*also makes gtfoo() to push code of foo onto stack, to edit it etc*/
-				/*enterq(foo): inits foo's address = topq+1 (to old);enter;body>q[]*/
+/******************* ENTER PRIMITIVE INSTRUCTIONS  & COMPLEX PROGS */
+/* we will now create initial perhaps recursive codes that go to q[]*/
+/* enter(A) to assign code & Qnum and 0 start-address to Q's name, A*/
+/* enterv and enterw: enter code such as in5(),x34(), cp3() & C4C2()*/
+/* ENTER (foo) states that foo is one of the codes in optimal search*/
+/* decl(m,n,foo,body) makes footext & fooaddress; foo code: m inputs*/
+/* n outputs; at most 1 new name in a body, for 1fold crossrecursion*/
+/* also makes gtfoo() to push code of foo onto stack, to edit it etc*/
+/* enterq(foo): inits foo's address = topq+1 (to old);enter;body>q[]*/
 
 #define         enter(A)        nQs++;          Q[nQs].fn=(*A);\
                      Q[nQs].name=#A;                 Q[nQs].start=0;
@@ -1437,13 +1445,14 @@ initsimple()
 		enter(qot) enter(nop) quotenum = Qnum("qot");
 }
 
-/*now we declare a few programs, thus illustrate possibilities: */
-/*c999: computes const:  nothing in, 1 out (999) on stack's top */
-/*simple testexp pops x & y from stack & pushes [6x (4y - 1)]^2 */
-/*then recursive fak(n):pop n;if 0 return 1 else n * fak(n - 1) */
-/*and fak2: make selfdefined fak function, whose name is 1; run */
-/*tailrec(x,fn11)returns x if n (on base)=0 else recurs(n-1,fn) */
-/*defnp, calltp, endnp recursion scheme for proc with ret if n=0 */
+/*now we declare a few programs, thus illustrate possibilities:
+  c999            : computes const:  nothing in, 1 out (999) on stack's top
+  simple testexp  : pops x & y from stack & pushes [6x (4y - 1)]^2
+                    then recursive 
+  fak(n)          : pop n;if 0 return 1 else n * fak(n - 1)
+  fak2            : make selfdefined fak function, whose name is 1; run
+  tailrec(x,fn11) : returns x if n (on base)=0 else recurs(n-1,fn)
+  defnp, calltp, endnp recursion scheme for proc with ret if n=0 */
 
 decl(0, 1, c999, c4 c5 powr c5 c5 mul sub ret) decl(2, 1, testexp, c4 mul dec c3 c2 mul mul mul up mul ret) decl(1, 1, fak, up c1 ex rt0 del up dec fak mul ret) decl(1, 1, fak2, c1 c1 def up c1 ex rt0 del up dec topf dof mul ret) decl(-1, -1, defnp, c0 toD pushdp dec toD qot def up rt0 dec intpf cpn qot ret)	/*num pars on Dstack, quote begin of defproc */
 decl(-1, -1, calltp, qot topf dof intpf cpn qot ret)	/*`call top proc' */
@@ -1451,7 +1460,7 @@ decl(-1, -1, endnp, qot ret qot fromD cpnb fromD up delD fromD ex bsf ret)
 /*`ret'; call fn def with number of pars found @ Ds... bsjmp also ok: */
 decl(-1, -1, tailrec, qot c1 c1 def up qot c2 outb qot ex rt0 del up dec topf dof qot c3 outb qot ret qot c1 outb c3 bsjmp)	/*no bsf:rt0 */
 																															/*to decide which of numerous decl'd programs really go to q[]stack*/
-	void initdecl()
+void initdecl()
 {
 	qp = 0;
 	oldp = 0;
@@ -1842,10 +1851,11 @@ onestep()
 	task = list[task].next;
 }				/*ok - even when task removed!! */
 
+/*is ip  valid? */
 BOOL
 ipok()
 {
-	long a = ip;			/*is ip  valid? */
+	long a = ip;
 	if (a < amin || a > qp)
 		return FALSE;
 	if (z(a) < 1 || z(a) > nQs)
@@ -1853,9 +1863,10 @@ ipok()
 	return TRUE;
 }
 
+/*til all solved or halt or time out or search! */
 void
 stepuntil()
-{				/*til all solved or halt or time out or search! */
+{
 	halt = FALSE;
 	while (unsolved && ipok() && (!halt) && t + unsolved <= T * P)
 		onestep();
