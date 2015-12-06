@@ -184,10 +184,21 @@ void unmark(long  ptr) {
 /* C(4..n) useful as local variables above top frame of a callstack*/
 /*** push & pop: for params / return values: call by value / by ref*/
 /*we will not access any nonexisting code beyond qp, or cells <amin*/
-BOOL bad(long a) { return(a< amin || a > qp); }
-#define inct    totalt++;  t++;/*increment time and total time*/
-#define tncheck if (n<0 || t+n> T*P)     {halt  =   TRUE; return  ;}   t+=n; totalt+=n;
-#define dp      tape[task]      [-adp]
+
+BOOL bad(long a) {
+	return(a< amin || a > qp);
+}
+
+/*increment time and total time*/
+void inct() {
+	totalt++;
+	t++;
+}
+
+long dp() {
+	return tape[task][-adp];
+}
+
 #define cp      tape[task]      [-acp]
 #define ip      tape[task]      [-acp -1 -tape[ task][- acp]]
 #define base    tape[task]      [-acp -2 -tape[ task][- acp]]
@@ -217,13 +228,29 @@ void set(long a, long    val) {  /*sets non-q[]-a below address1*/
 
 void cpabn(long a, long b, long n, long min, long  max) {
 	if (n<0 || bad(a) || bad(a + n) || b< min || b + n> max) {
-		halt = TRUE; return;
+		halt = TRUE;
+		return;
 	}
 	
-	if (a == b)   return;
-	tncheck
+	if (a == b) {
+		return;
+	}
 	
-	if (b <a)   while (n  > 0) { set(b, z(a)); n--; b++;  a++; }
+	// tncheck
+	if (n<0 || t + n> T*P) {
+		halt = TRUE;
+		return;
+	}
+	t += n;
+	totalt += n;
+	
+	if (b <a)
+		while (n  > 0) {
+			set(b, z(a));
+			n--;
+			b++;
+			a++;
+		}
 	else {
 		a += n - 1;
 		b += n - 1;
@@ -240,7 +267,7 @@ void cpabn(long a, long b, long n, long min, long  max) {
 /*more time than others, but all must end; order is irrelevant!*/
 
 void push(long x) {
-	long y = dp + 1;
+	long y = dp() + 1;
 	if (y > maxdp || minint > x || maxint < x) {
 		halt = TRUE;
 		return;
@@ -251,7 +278,7 @@ void push(long x) {
 }
 
 long pop() {
-	long tmp = dp;
+	long tmp = dp();
 	
 	if (tmp == 0) {
 		halt = TRUE;
@@ -263,7 +290,7 @@ long pop() {
 }
 
 long top() {
-	long x = dp;
+	long x = dp();
 	if (x == 0) {
 		halt = TRUE;
 		return 0;
@@ -275,12 +302,24 @@ long ds(long n) {
 	if (n < 0 || n  >    maxdp) { halt = TRUE; return 0; }
 		return  c(adp + n);
 }           /*nth in stack!*/
+
 void down(long n, long a) {
-	long i = dp - n + 1;    /*cp n down, onto a*/
+	long i = dp() - n + 1;    /*cp n down, onto a*/
 	if (i == a) return;        /*already done!*/
 	if (a  > i) { halt = TRUE; return; }    set(adp, a + n);  /*make a new dp*/
 	a += adp + 1; i += adp;   /*a & i: are now true addresses*/
-	tncheck         while (n > 0) { set(a, c(i)); n--; i++; a++; }
+	
+
+	// tncheck
+	if (n<0 || t + n> T*P) {
+		halt = TRUE;
+		return;
+	}
+	t += n;
+	totalt += n;
+	
+
+	while (n > 0) { set(a, c(i)); n--; i++; a++; }
 }
 
 /*we create: another stack @ aDp+1 & its ops pushD & popD and so on*/
@@ -303,7 +342,7 @@ void setC(long a, long    val)   /*set local vars in a top frame*/
 
 void pushblock(long m, long n) {
 	long i = cp, a = base,/*C(2)!*/
-		j = dp;     if (m> j) { halt = TRUE; return; } i += 3;   if (i + 3> maxcp) { halt = TRUE; return; }
+		j = dp();     if (m> j) { halt = TRUE; return; } i += 3;   if (i + 3> maxcp) { halt = TRUE; return; }
 		set(acp, i);/*now call stack pointer beneath the new frame!*/
 	if (m < 0)  setC(2, a);     else    setC(2, j - m);
 	/*new is oldbase:ALL are params! Or base below m params @ stack*/
@@ -314,7 +353,7 @@ void calla(long m, long n, long a) { pushblock(m, n); setC(1, a); }
 /*ip= a; m in; n out;m<0:all in; if n<0 ret all*/
 void ret() {
 	long i = cp, n = out; if (i<1) { halt = TRUE; return; }   /*pop? no frame*/
-		if (n >dp) { halt = TRUE; return; }   /*cannot restore as many as I requested*/
+		if (n >dp()) { halt = TRUE; return; }   /*cannot restore as many as I requested*/
 			if (n >= 0)  down(n, base); /*return values: replace inputs*/
 	set(acp, i - 3);
 }         /*resets cp, ip; onestep: ip++!*/
@@ -357,22 +396,41 @@ void powr() {
 	while (n> 1 && minint < i && i < maxint) { i *= m;   n--; }  push(i);
 }
 void up() { push(top()); }
-void del() { long x = dp;     if (x == 0) { halt = TRUE; return; }    set(adp, x - 1); }
+void del() { long x = dp();     if (x == 0) { halt = TRUE; return; }    set(adp, x - 1); }
 void clear() { set(adp, 0); }                   /*delete stack!*/
 void ex() {
-	long x, m = dp;             if (m < 2) { halt = TRUE; return; }
+	long x, m = dp();             if (m < 2) { halt = TRUE; return; }
 		x = ds(m); set(adp + m, ds(m - 1));       set(adp + m - 1, x);
 }
 void xmn() {
 	long x, m = pop(), n = pop();/*exchg stack elements*/
-	m = dp - m + 1;   n = dp - n + 1;    /*above top entry, too*/
-	if (m  < 1 || m> maxdp || n<1 || n>maxdp) { halt = TRUE; return; }
-		x = ds(m);        set(adp + m, ds(n)); set(adp + n, x);
+	m = dp() - m + 1;
+	n = dp() - n + 1;    /*above top entry, too*/
+	
+	if (m  < 1 || m> maxdp || n<1 || n>maxdp) {
+		halt = TRUE;
+		return;
+	}
+	
+	x = ds(m);
+	set(adp + m, ds(n));
+	set(adp + n, x);
 }
-void outn() { long n = pop();  push(ds(dp - n + 1)); }     /*up n!*/
+
+void outn() {     /*up n!*/
+	long n = pop();
+	push(ds(dp() - n + 1));
+}
+
 void inn() {
-	long n = pop();  n = dp - n + 1;        /*down!*/
-	if (n<1 || n> maxdp) { halt = TRUE; return; }    set(adp + n, top());
+	long n = pop();
+	n = dp() - n + 1;        /*down!*/
+	if (n<1 || n> maxdp) {
+		halt = TRUE;
+		return;
+	}
+	
+	set(adp + n, top());
 }
 
 void cpn() {
@@ -383,7 +441,7 @@ void cpn() {
 		return;
 	}
 	
-	i = dp;
+	i = dp();
 	j = i + n;
 	if (j>maxdp) {
 		halt = TRUE;
@@ -392,7 +450,19 @@ void cpn() {
 	set(adp, j);
 	j += adp;
 	i += adp;/*true!*/
-	tncheck   /*copy*/while (n > 0) {
+	
+
+	// tncheck   
+	if (n<0 || t + n> T*P) {
+		halt = TRUE;
+		return;
+	}
+	t += n;
+	totalt += n;
+	
+
+	/*copy*/
+	while (n > 0) {
 		set(j, c(i));
 		n--;
 		i--;
@@ -421,11 +491,11 @@ void inb() {
 void cpnb() {
 	long n = pop(); /*copy n on base onto my stack */
 	cpabn(adp + base + 1, adp + c(adp) + 1, n, adp + 1, aendstack);
-	set(adp, dp + n);
+	set(adp, dp() + n);
 }
 
 void ip2ds() { push(ip); }           void    pip() { setC(1, pop()); }
-void pushdp() { push(dp + 1); }        /*add 1 to count this push, too*/
+void pushdp() { push(dp() + 1); }        /*add 1 to count this push, too*/
 void popdp() { long a = pop(); if (a<0 || maxdp <a) { halt = TRUE; return; } set(adp, a); }
 void addadp() { push(pop() + adp); } /*adds offset of stack's start!*/
 void jmp1() { if (pop() > 0) { setC(1, pop()); jumped = TRUE; } }
@@ -524,32 +594,32 @@ void getq() {
 	}
 	
 	n = old[a].size;          /*push 1 frozen, maybe to edit!*/
-	cpabn(old[a].start, adp + 1 + dp, n, adp + 1, aendstack);
-	set(adp, dp + n);
+	cpabn(old[a].start, adp + 1 + dp(), n, adp + 1, aendstack);
+	set(adp, dp() + n);
 }
 
 void insq() {
-	long b = pop(), n, a = pop(), m = dp - base - b;
+	long b = pop(), n, a = pop(), m = dp() - base - b;
 	if (a<0 || a>oldp || b<0 || m<0) {
 		halt = TRUE; return;
 	}   /*insert frozen*/
 	n = old[a].size;  b += adp + base + 1;/*right above b+ top stack base*/
 	cpabn(b, b + n, m, adp + 1, aendstack);
 	cpabn(old[a].start, b, n, adp + 1, aendstack);
-	set(adp, dp + n);
+	set(adp, dp() + n);
 }        /*after base + b insert the q^a*/
 void find() {
-	long k = pop(), i = dp;     /*get position of k!*/
+	long k = pop(), i = dp();     /*get position of k!*/
 	while (i > 0 && c(i + adp) != k && t< T*P) {
 		i--;
-		inct
+		inct();
 	}
 	push(i);
 }
 void findb() {
 	long k = pop(), i = base + 1;/*find pos above base*/
 	while (c(adp + i) != k  && t<T* P) {
-		i++; inct
+		i++; inct();
 	}
 	push(i);
 }
@@ -562,21 +632,21 @@ void deln() {
 	
 	m += adp + base;          /*m + address of base in stack!*/
 	
-	cpabn(m + n + 1, m + 1, dp - base - n, adp + 1, aendstack);
-	set(adp, dp - n);
+	cpabn(m + n + 1, m + 1, dp() - base - n, adp + 1, aendstack);
+	set(adp, dp() - n);
 }
 void mvn() {
 	long b = pop(), n = pop(), a = pop(), m = base + adp;
 	cpabn(m + a, m + b, n, adp + 1, aendstack);
-	a = b + n - 1;  if (a> dp)     set(adp, a);
+	a = b + n - 1;  if (a> dp())     set(adp, a);
 }
 /*copy n from a  on base C2 to b maybe reset dp*/
 void insn() {
-	long b = pop(), n = pop(), a = pop(), m = dp - base - b;
+	long b = pop(), n = pop(), a = pop(), m = dp() - base - b;
 	if (b<0 || m<0 || n<1) { halt = TRUE; return; } b += adp + base + 1; a += adp + base;
 	cpabn(b, b + n, m, adp + 1, aendstack);
 	cpabn(a, b, n, adp + 1, aendstack);
-	set(adp, dp + n);
+	set(adp, dp() + n);
 }        /*insert n: from base+a after+b*/
 
 /*** * BIAS-SHIFTING PRIMITIVES THAT MODIFY THE CODE PROBABILITIES */
@@ -639,9 +709,31 @@ void decSQ() {
 }                 /*normalizer -1*/
 long upSQ;          /*SQ probability:enumerator  +=  upSQ: increase*/
 void oldSQ() {
-	long a = pop() + ndecl, n, i; if (a<0 || a> oldp) { halt = TRUE; return; }/*bad*/
-		n = old[a].size;  a = old[a].start;/*all SQs of old nondecl: +upSQ*/
-	tncheck  n += a;  for (i = a; i<n; i++)addtoSQ(SQ[q[i].Q], upSQ);
+	long a = pop() + ndecl, n, i;
+	
+	if (a<0 || a> oldp) {
+		halt = TRUE;
+		return;
+	}/*bad*/
+	
+	 /*all SQs of old nondecl: +upSQ*/
+	n = old[a].size;
+	a = old[a].start;
+	
+
+	// tncheck
+	if (n<0 || t + n> T*P) {
+		halt = TRUE;
+		return;
+	}
+	t += n;
+	totalt += n;
+		
+		
+		
+	n += a;
+	for (i = a; i<n; i++)
+		addtoSQ(SQ[q[i].Q], upSQ);
 }
 
 void setpat() {
@@ -964,7 +1056,12 @@ void printpat(long n) {
 void printtape() {
 	long i;         printf("\n\n-TAPE:"); prc(cp)
 		printf("calls:"); for (i = acp; i < acp + maxcp; i += 3)printblock(i);
-	prc(dp)         printf("data stack:");
+	
+	//prc(dp())
+	printf("\n\n"); printf(dp());     printf(":%d ", c(adp));
+
+
+	printf("data stack:");
 	for (i = adp + 1; i <= aendstack; i++) printf("%d:%d ", i - adp, c(i));
 	prc(Dp)         printf("2nd data stack:");
 	for (i = aDp + 1; i <= aendDs; i++) printf("%d:%d ", i - aDp, c(i));
@@ -1023,7 +1120,7 @@ void onestep() {
 	long n = z(ip);  /*execute single Q--instruction*/
 	if (t >2 * topt) { topt = t;     /*show();*/ }
 	if (Sp>2 * topSp) { topSp = Sp;    /*show();*/ }  /*snapshot pics*/
-	jumped = FALSE;  insts++;        inct     /*some Q's cost more!*/
+	jumped = FALSE;  insts++;        inct();     /*some Q's cost more!*/
 		if (1 == c(aquoteflag))
 			if (n == quotenum)  set(aquoteflag, 0);
 			else    push(n);       /*if quote, then just push it!!*/
