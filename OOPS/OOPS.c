@@ -411,12 +411,78 @@ ret()
 	set(acp, i - 3);
 }				/*resets cp, ip; onestep: ip++! */
 
-				/*** *************** BASIC PRIMITIVE INSTRUCTIONS OF THE SEARCHER **/
-				/* Q pops arguments, calculates some expression, and pushes result */
-				/*** our macros make C-codes such as c1() and c2() & m1() and m2() */
-#define w(A)    void            c##A()         {push (A  );}   \
-                     void            m##A()         {push ( -A);}
-w(1) w(2) w(3) w(4) w(5) w(6) w(7) w(8) w(9)	/*makes 18 C-functions */
+
+/*** *************** BASIC PRIMITIVE INSTRUCTIONS OF THE SEARCHER **/
+/* Q pops arguments, calculates some expression, and pushes result */
+
+void c1() {
+	push(1);
+}
+
+void m1() {
+	push(-1);
+}
+
+void c2() {
+	push(2);
+}
+
+void m2() {
+	push(-2);
+}
+
+void c3() {
+	push(3);
+}
+
+void m3() {
+	push(-3);
+}
+
+void c4() {
+	push(4);
+}
+
+void m4() {
+	push(-4);
+}
+
+void c5() {
+	push(5);
+}
+
+void m5() {
+	push(-5);
+}
+
+void c6() {
+	push(6);
+}
+
+void m6() {
+	push(-6);
+}
+
+void c7() {
+	push(7);
+}
+
+void m7() {
+	push(-7);
+}
+
+void c9() {
+	push(9);
+}
+
+void m9() {
+	push(-9);
+}
+
+
+
+
+
 void
 and ()
 {
