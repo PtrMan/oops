@@ -156,15 +156,14 @@ anchor;			/*start of chain of solved tasks in task list[] */
 				/*** ***** TRACK NON-OP TAPE CHANGES IN GLOBAL STACK:POP/PUSH CELLS*/
 				/*** 1 big stack for all my parallel tasks; Sp=0 --> stack is empty*/
 				/*** pushcells store task's tapecell values before a test of next Q*/
-#define stop   {halt  =   TRUE; return  ;}	/*use so frequently! */
-#define stop0  {halt  =   TRUE; return 0;}
+
 void
 pushcell(long cell)
 {
 	if (Sp >= stacksize)
 	{
 		printf("\nStack overflow");
-		stop
+		{halt  =   TRUE; return  ;}
 	}
 	if (mark[task][cell])
 		return;			/*cell was no virgin! */
@@ -208,8 +207,12 @@ bad(long a)
 	return (a < amin || a > qp);
 }
 
-#define inct    totalt++;  t++;	/*increment time and total time */
-#define tncheck if (n<0 || t+n> T*P)     stop   t+=n; totalt+=n;
+/*increment time and total time */
+void inct() {
+	totalt++;  t++;
+}
+
+#define tncheck if (n<0 || t+n> T*P)     {halt  =   TRUE; return  ;}   t+=n; totalt+=n;
 #define dp      tape[task]      [-adp]
 #define cp      tape[task]      [-acp]
 #define ip      tape[task]      [-acp -1 -tape[ task][- acp]]
@@ -249,7 +252,7 @@ void
 cpabn(long a, long b, long n, long min, long max)
 {
 	if (n < 0 || bad(a) || bad(a + n) || b < min || b + n > max)
-		stop if (a == b)
+		{halt  =   TRUE; return  ;} if (a == b)
 		return;
 	tncheck if (b < a)
 		while (n > 0)
@@ -282,7 +285,7 @@ push(long x)
 {
 	long y = dp + 1;
 	if (y > maxdp || minint > x || maxint < x)
-		stop set(adp, y);
+		{halt  =   TRUE; return  ;} set(adp, y);
 	set(adp + y, x);
 }
 
@@ -291,7 +294,7 @@ pop()
 {
 	long tmp = dp;
 	if (tmp == 0)
-		stop0 set(adp, tmp - 1);
+		{halt  =   TRUE; return  0;} set(adp, tmp - 1);
 	return c(adp + tmp);
 }
 
@@ -300,14 +303,14 @@ top()
 {
 	long x = dp;
 	if (x == 0)
-		stop0 return c(adp + x);
+		{halt  =   TRUE; return  0;} return c(adp + x);
 }
 
 long
 ds(long n)
 {
 	if (n < 0 || n > maxdp)
-		stop0 return c(adp + n);
+		{halt  =   TRUE; return 0 ;} return c(adp + n);
 }				/*nth in stack! */
 
 void
@@ -317,7 +320,7 @@ down(long n, long a)
 	if (i == a)
 		return;			/*already done! */
 	if (a > i)
-		stop set(adp, a + n);	/*make a new dp */
+		{halt  =   TRUE; return  ;} set(adp, a + n);	/*make a new dp */
 	a += adp + 1;
 	i += adp;			/*a & i: are now true addresses */
 	tncheck while (n > 0)
@@ -334,7 +337,7 @@ void
 pushD(long x)
 {
 	if (Dp == maxdp || x < minint || maxint < x)
-		stop set(aDp, Dp + 1);
+		{halt  =   TRUE; return  ;} set(aDp, Dp + 1);
 	set(aDp + Dp, x);
 }
 
@@ -343,7 +346,7 @@ popD()
 {
 	long tmp = Dp;
 	if (tmp == 0)
-		stop0 set(aDp, tmp - 1);
+		{halt  =   TRUE; return 0 ;} set(aDp, tmp - 1);
 	return c(aDp + tmp);
 }
 
@@ -352,7 +355,7 @@ topD()
 {
 	long x = Dp;
 	if (x == 0)
-		stop0 return c(aDp + x);
+		{halt  =   TRUE; return  0;} return c(aDp + x);
 }
 
 long
@@ -365,7 +368,7 @@ void
 setC(long a, long val)		/*set local vars in a top frame */
 {
 	if (maxint < val || val < minint)
-		stop			/*out of bounds */
+		{halt  =   TRUE; return  ;}			/*out of bounds */
 		set(acp + cp + a, val);
 }				/*address of param on stack */
 
@@ -375,9 +378,9 @@ pushblock(long m, long n)
 	long i = cp, a = base,	/*C(2)! */
 		j = dp;
 	if (m > j)
-		stop i += 3;
+		{halt  =   TRUE; return  ;} i += 3;
 	if (i + 3 > maxcp)
-		stop set(acp, i);		/*now call stack pointer beneath the new frame! */
+		{halt  =   TRUE; return  ;} set(acp, i);		/*now call stack pointer beneath the new frame! */
 	if (m < 0)
 		setC(2, a);
 	else
@@ -400,9 +403,9 @@ ret()
 {
 	long i = cp, n = out;
 	if (i < 1)
-		stop			/*pop? no frame */
+		{halt  =   TRUE; return  ;}			/*pop? no frame */
 		if (n > dp)
-			stop			/*cannot restore as many as I requested */
+			{halt  =   TRUE; return  ;}			/*cannot restore as many as I requested */
 			if (n >= 0)
 				down(n, base);		/*return values: replace inputs */
 	set(acp, i - 3);
@@ -519,7 +522,7 @@ divide()
 {
 	long x = pop();
 	if (x == 0)
-		stop push(pop() / x);
+		{halt  =   TRUE; return  ;} push(pop() / x);
 }
 
 void
@@ -527,7 +530,7 @@ remnant()
 {
 	long x = pop();
 	if (x == 0)
-		stop push(pop() % x);
+		{halt  =   TRUE; return  ;} push(pop() % x);
 }
 
 void
@@ -569,7 +572,7 @@ del()
 {
 	long x = dp;
 	if (x == 0)
-		stop set(adp, x - 1);
+		{halt  =   TRUE; return  ;} set(adp, x - 1);
 }
 
 void
@@ -583,7 +586,7 @@ ex()
 {
 	long x, m = dp;
 	if (m < 2)
-		stop x = ds(m);
+		{halt  =   TRUE; return  ;} x = ds(m);
 	set(adp + m, ds(m - 1));
 	set(adp + m - 1, x);
 }
@@ -595,7 +598,7 @@ xmn()
 	m = dp - m + 1;
 	n = dp - n + 1;		/*above top entry, too */
 	if (m < 1 || m > maxdp || n < 1 || n > maxdp)
-		stop x = ds(m);
+		{halt  =   TRUE; return  ;} x = ds(m);
 	set(adp + m, ds(n));
 	set(adp + n, x);
 }
@@ -613,7 +616,7 @@ inn()
 	long n = pop();
 	n = dp - n + 1;		/*down! */
 	if (n < 1 || n > maxdp)
-		stop set(adp + n, top());
+		{halt  =   TRUE; return  ;} set(adp + n, top());
 }
 
 void
@@ -621,10 +624,10 @@ cpn()
 {
 	long i, j, n = pop();
 	if (n < 0)
-		stop i = dp;
+		{halt  =   TRUE; return  ;} i = dp;
 	j = i + n;
 	if (j > maxdp)
-		stop set(adp, j);
+		{halt  =   TRUE; return  ;} set(adp, j);
 	j += adp;
 	i += adp;			/*true! */
 	tncheck /*copy */ while (n > 0)
@@ -643,7 +646,7 @@ xmnb()
 	m = base + m;
 	n = base + n;			/*index relative to base ptr C2 */
 	if (m < 1 || m > maxdp || n < 1 || n > maxdp)
-		stop x = ds(m);
+		{halt  =   TRUE; return  ;} x = ds(m);
 	set(adp + m, ds(n));
 	set(adp + n, x);
 }
@@ -661,7 +664,7 @@ inb()
 	long n = pop();
 	n = base + n;			/*top to base+n */
 	if (n < 1 || n > maxdp)
-		stop set(adp + n, top());
+		{halt  =   TRUE; return  ;} set(adp + n, top());
 }
 
 void
@@ -694,7 +697,7 @@ popdp()
 {
 	long a = pop();
 	if (a < 0 || maxdp < a)
-		stop set(adp, a);
+		{halt  =   TRUE; return  ;} set(adp, a);
 }
 
 void
@@ -738,7 +741,7 @@ delD()
 {
 	long x = Dp;
 	if (x == 0)
-		stop set(aDp, x - 1);
+		{halt  =   TRUE; return  ;} set(aDp, x - 1);
 }
 
 /*** *************** SOME PRIMITIVES FOR DECLARING & CALLING CODES */
@@ -749,7 +752,7 @@ exec()
 {
 	long n = pop();
 	if (n < 1 || n > nQs)
-		stop(*Q[n].fn) ();
+		{halt  =   TRUE; return  ;}(*Q[n].fn) ();
 }
 
 /*views n as the name of a token and executes! */
@@ -758,7 +761,7 @@ def()
 {
 	long i = 1 + fnp;
 	if (i > maxfn)
-		stop			/*new fn */
+		{halt  =   TRUE; return  ;}			/*new fn */
 		set(afnp, i);
 	i = 3 * i + afnp;		/*make a name:it is last name+1 */
 	set(i, ip + 1);
@@ -778,7 +781,7 @@ popf()
 {
 	long i = fnp;
 	if (i == 0)
-		stop push(i);
+		{halt  =   TRUE; return  ;} push(i);
 	set(afnp, i - 1);
 }				/*undefines last function! */
 
@@ -787,7 +790,7 @@ dof()
 {
 	long n = pop();		/*calls selfmade fn by its name */
 	if (n < 1 || n > fnp)
-		stop			/*no such name! */
+		{halt  =   TRUE; return  ;}			/*no such name! */
 		n = afnp + 3 * n;
 	pushblock(c(n - 2), c(n - 1));	/*nums ins/outs */
 	setC(1, c(n));
@@ -798,7 +801,7 @@ intpf()
 {
 	long n = fnp;			/* get number of inputs of topf */
 	if (n < 1)
-		stop /*no such name! */ push(c(afnp + 3 * n - 2));
+		{halt  =   TRUE; return  ;} /*no such name! */ push(c(afnp + 3 * n - 2));
 }				/*num ins */
 
 void
@@ -806,7 +809,7 @@ outpf()
 {
 	long n = fnp;			/* get number of ouputs of topf */
 	if (n < 1)
-		stop /*no such name! */ push(c(afnp + 3 * n - 1));
+		{halt  =   TRUE; return  ;} /*no such name! */ push(c(afnp + 3 * n - 1));
 }				/*num ins */
 
 void
@@ -814,7 +817,7 @@ oldf()
 {
 	long a = pop();
 	if (a < 0 || a > oldp)
-		stop			/*bad old */
+		{halt  =   TRUE; return  ;}			/*bad old */
 		pushblock(0, 0);
 	setC(1, old[a].start);
 }				/*last in last out ok */
@@ -870,7 +873,7 @@ getq()
 {
 	long a = pop(), n;
 	if (a < 0 || a > oldp)
-		stop			/*bad old */
+		{halt  =   TRUE; return  ;}			/*bad old */
 		n = old[a].size;		/*push 1 frozen, maybe to edit! */
 	cpabn(old[a].start, adp + 1 + dp, n, adp + 1, aendstack);
 	set(adp, dp + n);
@@ -881,7 +884,7 @@ insq()
 {
 	long b = pop(), n, a = pop(), m = dp - base - b;
 	if (a < 0 || a > oldp || b < 0 || m < 0)
-		stop			/*insert frozen */
+		{halt  =   TRUE; return  ;}			/*insert frozen */
 		n = old[a].size;
 	b += adp + base + 1;		/*right above b+ top stack base */
 	cpabn(b, b + n, m, adp + 1, aendstack);
@@ -896,7 +899,7 @@ find()
 	while (i > 0 && c(i + adp) != k && t < T * P)
 	{
 		i--;
-		inct
+		inct();
 	}
 	push(i);
 }
@@ -908,7 +911,7 @@ findb()
 	while (c(adp + i) != k && t < T * P)
 	{
 		i++;
-		inct
+		inct();
 	}
 	push(i);
 }
@@ -918,7 +921,7 @@ deln()
 {
 	long n = pop(), m = pop();
 	if (m < 0 || n < 0)
-		stop			/*delete n after stack base + m */
+		{halt  =   TRUE; return  ;}			/*delete n after stack base + m */
 		m += adp + base;		/*m + address of base in stack! */
 	cpabn(m + n + 1, m + 1, dp - base - n, adp + 1, aendstack);
 	set(adp, dp - n);
@@ -940,7 +943,7 @@ insn()
 {
 	long b = pop(), n = pop(), a = pop(), m = dp - base - b;
 	if (b < 0 || m < 0 || n < 1)
-		stop b += adp + base + 1;
+		{halt  =   TRUE; return  ;} b += adp + base + 1;
 	a += adp + base;
 	cpabn(b, b + n, m, adp + 1, aendstack);
 	cpabn(a, b, n, adp + 1, aendstack);
@@ -1057,7 +1060,7 @@ decSQ()
 	y = psum();
 	z = pmax();
 	if (x == 1 && y <= z + 1)
-		stop			/*leave at least 2 SQs */
+		{halt  =   TRUE; return  ;}			/*leave at least 2 SQs */
 		if (x == z)
 			setmax(get2ndmax());	/*change of max */
 	setp(i, x - 1);
@@ -1070,7 +1073,7 @@ oldSQ()
 {
 	long a = pop() + ndecl, n, i;
 	if (a < 0 || a > oldp)
-		stop			/*bad */
+		{halt  =   TRUE; return  ;}			/*bad */
 		n = old[a].size;
 	a = old[a].start;		/*all SQs of old nondecl: +upSQ */
 	tncheck n += a;
@@ -1083,7 +1086,7 @@ setpat()
 {
 	long i = pop();		/*instantiate my search pattern */
 	if (i < 0 || i > patp)
-		stop			/*no such search pattern exists */
+		{halt  =   TRUE; return  ;}			/*no such search pattern exists */
 		set(acurp, i);
 }				/*next SQ-search defined via new probabilities! */
 
@@ -1092,7 +1095,7 @@ pupat()
 {
 	long i = apatp;		/*push search pattern */
 	if (i > maxpat)
-		stop i++;
+		{halt  =   TRUE; return  ;} i++;
 	set(apatp, i);		/*not too many? */
 	cpabn(poff + 1, acurp + 1 + i * (2 + nSQs), 2 + nSQs, acurp + 1, aendpats);
 }
@@ -1102,7 +1105,7 @@ popat()
 {
 	long i = apatp;
 	if (i == 0)
-		stop set(apatp, i - 1);
+		{halt  =   TRUE; return  ;} set(apatp, i - 1);
 	push(i);
 }				/*pop search pattern */
 
@@ -1171,9 +1174,9 @@ movdisk(long a, long b)
 {
 	long topa = gettop(a), topb;
 	if (topa == 0)
-		stop topb = gettop(b);
+		{halt  =   TRUE; return  ;} topb = gettop(b);
 	if (topb > 0 && getdisk(b, topb) < getdisk(a, topa))
-		stop topb++;
+		{halt  =   TRUE; return  ;} topb++;
 	settop(b, topb);
 	setdisk(b, topb, getdisk(a, topa));
 	setdisk(a, topa, 0);
@@ -1214,7 +1217,7 @@ mvdsk()
 {
 	long a = ds(base + 1), b = ds(base + 3);
 	if (a < 1 || a > 3 || b < 1 || b > 3 || a == b)
-		stop movdisk(a, b);
+		{halt  =   TRUE; return  ;} movdisk(a, b);
 }
 
 void
@@ -1758,7 +1761,7 @@ onestep()
 	}				/*snapshot pics */
 	jumped = FALSE;
 	insts++;
-	inct				/*some Q's cost more! */
+	inct();				/*some Q's cost more! */
 		if (1 == c(aquoteflag))
 			if (n == quotenum)
 				set(aquoteflag, 0);
